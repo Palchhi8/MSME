@@ -92,12 +92,13 @@ productName, quantity, costPrice, sellingPrice, date
 | GET | `/api/sales/all` | – | Fetch normalized sales documents |
 | GET | `/api/sales/summary` | – | Deterministic analytics (KPIs, trends, top products) |
 | GET | `/api/auth/me` | – | Returns Firebase user profile |
-| POST | `/api/ai/chat` | `{ query, language?, inventorySnapshot?, ruleConfig?, region? }` | Generates MSME-friendly recommendations using Gemini |
+| POST | `/api/ai/chat` | `{ query, role, language?, inventorySnapshot?, ruleConfig?, region? }` | Generates MSME-friendly recommendations using Gemini |
 
 ### Sample `/api/ai/chat` Body
 ```json
 {
   "query": "Profit dipped last week, what should I do?",
+  "role": "profitAnalyst",
   "language": "Hinglish",
   "inventorySnapshot": {
     "Red Saree": 8,
@@ -110,6 +111,93 @@ productName, quantity, costPrice, sellingPrice, date
 }
 ```
 Response includes `reply` (Gemini), plus `analyticsSummary` and `ruleSignals` for UI reuse.
+
+## AI Agent Behavior
+- Centralized prompt builder in [backend/src/utils/promptBuilder.js](backend/src/utils/promptBuilder.js) enforces MSME-specific system context, role templates, and the mandatory `Answer / Why / What Next` format.
+- Controller logic in [backend/src/controllers/aiController.js](backend/src/controllers/aiController.js) normalizes roles (`profitAnalyst`, `inventoryManager`, `marketingAdvisor`), strips any `[Role]` prefix from user queries, and injects analytics + rule signals into Gemini.
+- If `role` is omitted, the API falls back to Profit Analyst but frontend clients should send it explicitly for clarity.
+- Rule engine alerts are translated into conversational hints (no internal names) so the AI talks like a store manager, not a dashboard.
+
+### Response Format (always enforced)
+```
+Answer: direct reply with numbers if available
+Why: short reason in plain words
+What Next: single actionable next step
+```
+
+### Sample Gemini Call (server-side)
+```javascript
+const model = getChatModel();
+const prompt = buildAiPrompt({
+  query: 'मेरी profit क्यूँ घट रही है?',
+  analyticsSummary,
+  ruleSignals,
+  language: 'Hindi',
+  userContext: { name: 'Anita', region: 'Delhi' },
+  role: 'profitAnalyst'
+});
+const result = await model.generateContent(prompt);
+const reply = result.response.text();
+```
+
+### Example Inputs & Outputs
+
+**Hindi query**
+Input:
+```json
+{
+  "query": "आज profit कम है, reason batao",
+  "role": "profitAnalyst",
+  "language": "Hindi"
+}
+```
+Output:
+```
+Answer:
+आज का profit करीब INR 12,400 रहा, पिछले हफ्ते से थोड़ा कम है.
+Why:
+Snacks की demand steady थी लेकिन oil cost और wastage बढ़ गया.
+What Next:
+कल तेल का order 10% कम करें और तले हुए snacks पर ₹5 बढ़ाकर देखें.
+```
+
+**English query**
+Input:
+```json
+{
+  "query": "Stock for biscuits is dropping, what should I buy?",
+  "role": "inventoryManager",
+  "language": "English"
+}
+```
+Output:
+```
+Answer:
+Biscuits will run out in about two days at the current sales pace.
+Why:
+Daily sales are 26 packs while shelf stock is under 60, so cover is short.
+What Next:
+Place a 120-pack refill today and keep 20 packs aside for the weekend rush.
+```
+
+**Hinglish query**
+Input:
+```json
+{
+  "query": "Weekend ke liye koi offer idea?",
+  "role": "marketingAdvisor",
+  "language": "Hinglish"
+}
+```
+Output:
+```
+Answer:
+Weekend traffic ko pull karne ke liye combo offer Rakhi set + bangles INR 299 rakho.
+Why:
+High-performing fashion items already contribute 35% revenue, bundle se ticket size badhega.
+What Next:
+WhatsApp pe 5 line ka poster bhejo aur Saturday subah se shelf ke front par combo display rakho.
+```
 
 ## Rule Engine Signals
 - **lowStock**: alerts when inventory falls below threshold
