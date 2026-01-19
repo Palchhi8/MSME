@@ -2,7 +2,7 @@ const { getChatModel } = require('../config/gemini');
 const { buildAnalyticsSummary } = require('../utils/analytics');
 const { runRuleEngine } = require('../utils/ruleEngine');
 const { fetchSales } = require('../utils/salesRepository');
-const { buildAiPrompt } = require('../utils/promptBuilder');
+const { buildAiPrompt, normalizeRole } = require('../utils/promptBuilder');
 
 const extractInventorySnapshot = (input) => {
   if (!input) return {};
@@ -10,13 +10,30 @@ const extractInventorySnapshot = (input) => {
   return input;
 };
 
+const extractRoleToken = (rawQuery = '') => {
+  if (typeof rawQuery !== 'string') {
+    return { cleanQuery: '', detectedRole: null };
+  }
+
+  const match = rawQuery.match(/^\s*\[([^\]]+)\]\s*/i);
+  if (!match) {
+    return { cleanQuery: rawQuery.trim(), detectedRole: null };
+  }
+
+  const cleanQuery = rawQuery.slice(match[0].length).trim();
+  return { cleanQuery, detectedRole: match[1] };
+};
+
 const chatWithAi = async (req, res, next) => {
   try {
-    const { query, language, inventorySnapshot, ruleConfig, region } = req.body || {};
+    const { query: rawQuery, language, inventorySnapshot, ruleConfig, region, role: explicitRole } = req.body || {};
 
-    if (!query) {
+    const { cleanQuery, detectedRole } = extractRoleToken(rawQuery);
+    if (!cleanQuery) {
       return res.status(400).json({ message: 'Query is required.' });
     }
+
+    const resolvedRole = normalizeRole(explicitRole || detectedRole);
 
     const sales = await fetchSales(req.user.uid);
     const analyticsSummary = buildAnalyticsSummary(sales);
@@ -28,14 +45,15 @@ const chatWithAi = async (req, res, next) => {
 
     const model = getChatModel();
     const prompt = buildAiPrompt({
-      query,
+      query: cleanQuery,
       analyticsSummary,
       ruleSignals,
       language,
       userContext: {
         name: req.user.name || req.user.email,
         region: region || 'India'
-      }
+      },
+      role: resolvedRole
     });
 
     const result = await model.generateContent(prompt);
@@ -46,7 +64,8 @@ const chatWithAi = async (req, res, next) => {
     return res.json({
       reply,
       analyticsSummary,
-      ruleSignals
+      ruleSignals,
+      role: resolvedRole
     });
   } catch (error) {
     return next(error);
