@@ -157,11 +157,12 @@ const buildRoleDirective = (roleKey) => {
   return `Current role: ${template.label}. ${template.responsibilities} ${template.actionVerbs}`;
 };
 
-const buildResponseFormat = (hasData) => {
+const buildResponseFormat = (hasData, roleLabel) => {
   const dataHint = hasData
     ? 'Use available numbers. Keep Answer/Why/What Next to 1-2 short sentences each.'
     : 'Data is limited; clearly state that more sales uploads are needed before advising.';
-  return `${dataHint} Structure output exactly as:
+  return `${dataHint} Format output exactly as:
+AI Role: ${roleLabel}
 Answer: <direct reply>
 Why: <reason in plain words>
 What Next: <specific next step>`;
@@ -198,9 +199,10 @@ const buildAiPrompt = ({
   const languageHint = resolveLanguageHint(language);
   const systemContext = buildSystemContext({ languageHint, userContext }); // Step 1: system context
   const roleDirective = buildRoleDirective(role);
+  const roleLabel = (ROLE_TEMPLATES[role] || ROLE_TEMPLATES[ROLE_KEYS.PROFIT_ANALYST]).label;
   const analyticsNarrative = buildAnalyticsNarrative(analyticsSummary);
   const ruleNarrative = buildRuleNarrative(ruleSignals);
-  const responseFormat = buildResponseFormat(hasUsableData(analyticsSummary));
+  const responseFormat = buildResponseFormat(hasUsableData(analyticsSummary), roleLabel);
 
   return `${systemContext}
 ${roleDirective}

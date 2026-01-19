@@ -1,12 +1,71 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import api from '../api/axios';
 
-const ROLES = ['Profit Analyst', 'Inventory Manager', 'Marketing Advisor'];
+const ROLE_OPTIONS = [
+  {
+    key: 'profitAnalyst',
+    label: 'Profit Analyst',
+    description: 'Understands margins & cost levers'
+  },
+  {
+    key: 'inventoryManager',
+    label: 'Inventory Manager',
+    description: 'Keeps shelf stock in control'
+  },
+  {
+    key: 'marketingAdvisor',
+    label: 'Marketing Advisor',
+    description: 'Plans offers & footfall boosts'
+  }
+];
+
+const ROLE_LOOKUP = ROLE_OPTIONS.reduce((map, role) => ({ ...map, [role.key]: role }), {});
+
+const parseAiResponse = (text = '') => {
+  const sections = { role: '', answer: '', why: '', whatNext: '' };
+  if (!text) return sections;
+
+  let currentKey = null;
+  text.split('\n').forEach((rawLine) => {
+    const line = rawLine.trim();
+    if (!line) return;
+    const lower = line.toLowerCase();
+
+    if (lower.startsWith('ai role')) {
+      sections.role = line.replace(/ai role:\s*/i, '').trim();
+      currentKey = null;
+      return;
+    }
+    if (lower.startsWith('answer')) {
+      sections.answer = line.replace(/answer:\s*/i, '').trim();
+      currentKey = 'answer';
+      return;
+    }
+    if (lower.startsWith('why')) {
+      sections.why = line.replace(/why:\s*/i, '').trim();
+      currentKey = 'why';
+      return;
+    }
+    if (lower.startsWith('what next')) {
+      sections.whatNext = line.replace(/what next:\s*/i, '').trim();
+      currentKey = 'whatNext';
+      return;
+    }
+
+    if (currentKey) {
+      sections[currentKey] = sections[currentKey]
+        ? `${sections[currentKey]} ${line}`
+        : line;
+    }
+  });
+
+  return sections;
+};
 
 const AIChat = () => {
-  const [role, setRole] = useState(ROLES[0]);
+  const [roleKey, setRoleKey] = useState(ROLE_OPTIONS[0].key);
   const [message, setMessage] = useState('');
-  const [response, setResponse] = useState('');
+  const [aiOutput, setAiOutput] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -20,13 +79,20 @@ const AIChat = () => {
     try {
       setIsLoading(true);
       setError(null);
-      setResponse('');
+      setAiOutput(null);
       const payload = {
-        query: `[${role}] ${message}`,
+        query: message.trim(),
+        role: roleKey,
         language: 'Hinglish'
       };
       const res = await api.post('/api/ai/chat', payload);
-      setResponse(res.data.reply || 'AI did not return a response.');
+      const parsed = parseAiResponse(res.data.reply);
+      const resolvedRoleKey = res.data.role || roleKey;
+      setAiOutput({
+        roleKey: resolvedRoleKey,
+        ...parsed,
+        raw: res.data.reply
+      });
     } catch (err) {
       setError(err.response?.data?.message || 'Unable to reach AI assistant.');
     } finally {
@@ -34,16 +100,36 @@ const AIChat = () => {
     }
   };
 
+  const activeRole = useMemo(() => ROLE_LOOKUP[roleKey] || ROLE_OPTIONS[0], [roleKey]);
+  const responseRoleLabel = useMemo(() => {
+    if (!aiOutput) return null;
+    return aiOutput.role || (ROLE_LOOKUP[aiOutput.roleKey]?.label) || activeRole.label;
+  }, [aiOutput, activeRole.label]);
+
   return (
     <section className="card">
-      <h2>AI Business Coach</h2>
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">AI Business Assistant</p>
+          <h2>Role-based advice in plain words</h2>
+        </div>
+      </div>
+
+      <div className="role-switch">
+        {ROLE_OPTIONS.map((roleOption) => (
+          <button
+            type="button"
+            key={roleOption.key}
+            className={`role-pill ${roleOption.key === roleKey ? 'role-pill--active' : ''}`}
+            onClick={() => setRoleKey(roleOption.key)}
+          >
+            <span>{roleOption.label}</span>
+            <small>{roleOption.description}</small>
+          </button>
+        ))}
+      </div>
+
       <form onSubmit={handleChat} className="chat-form">
-        <label htmlFor="role">Select Role</label>
-        <select id="role" value={role} onChange={(e) => setRole(e.target.value)}>
-          {ROLES.map((item) => (
-            <option value={item} key={item}>{item}</option>
-          ))}
-        </select>
         <label htmlFor="question">Question</label>
         <textarea
           id="question"
@@ -57,10 +143,21 @@ const AIChat = () => {
         </button>
       </form>
       {error && <p className="status status--error">{error}</p>}
-      {response && (
-        <div className="chat-response">
-          <h4>AI Response</h4>
-          <p>{response}</p>
+      {aiOutput && (
+        <div className="ai-response-card">
+          <p className="ai-response-role">AI Role: {responseRoleLabel}</p>
+          <div className="ai-response-section">
+            <h4>Answer</h4>
+            <p>{aiOutput.answer || 'AI could not find the numbers yet.'}</p>
+          </div>
+          <div className="ai-response-section">
+            <h4>Why</h4>
+            <p>{aiOutput.why || 'Need more sales data to explain.'}</p>
+          </div>
+          <div className="ai-response-section">
+            <h4>What Next</h4>
+            <p>{aiOutput.whatNext || 'Please upload recent sales to get an action plan.'}</p>
+          </div>
         </div>
       )}
     </section>

@@ -66,6 +66,21 @@ button, input, textarea, select {
   width: 100%;
 }
 
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+  margin: 0 0 0.25rem;
+}
+
 .card-header {
   display: flex;
   align-items: center;
@@ -114,6 +129,40 @@ button, input, textarea, select {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.role-switch {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.role-pill {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.9rem;
+  padding: 0.85rem 1rem;
+  background: #f8fafc;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.role-pill span {
+  font-weight: 600;
+}
+
+.role-pill small {
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+.role-pill--active {
+  border-color: #4f46e5;
+  background: #eef2ff;
 }
 
 textarea {
@@ -190,6 +239,37 @@ textarea {
   background: #f5f3ff;
   border-radius: 0.75rem;
   border-left: 4px solid #4f46e5;
+}
+
+.ai-response-card {
+  margin-top: 1.25rem;
+  border: 1px solid #e0e7ff;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  background: linear-gradient(135deg, rgba(79,70,229,0.08), rgba(255,255,255,0.9));
+}
+
+.ai-response-role {
+  font-weight: 600;
+  color: #312e81;
+  margin-bottom: 0.75rem;
+}
+
+.ai-response-section + .ai-response-section {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed #c7d2fe;
+}
+
+.ai-response-section h4 {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.ai-response-section p {
+  margin: 0;
+  color: #1f2937;
 }
 
 @media (max-width: 640px) {
